@@ -1,0 +1,18 @@
+# Only send application sources and installer inputs to the build.
+**
+!docker/
+!docker/Dockerfile
+!docker/Dockerfile.dockerignore
+!docker/install-jetson.sh
+!docker/build-torch-libraries.sh
+!pyproject.toml
+!README.md
+!LICENSE
+!install.sh
+!demos/
+!demos/**
+!harness/
+!harness/**
+**/__pycache__/
+**/*.pyc
+**/config.local*.json

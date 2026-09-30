@@ -1,0 +1,23 @@
+services:
+  venus:
+    container_name: duplex
+    platform: linux/arm64
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+      - venus-runtime:/workspace/runtime
+    ports:
+      - "8032:8032"
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    init: true
+    stdin_open: true
+    tty: true
+
+volumes:
+  venus-runtime:
