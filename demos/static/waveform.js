@@ -49,6 +49,7 @@ export class MicrophoneWaveform {
     this.active = false;
     this.muted = false;
     this.pitch = 0;
+    this.rms = 0;
     this.lastPitchTime = 0;
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.canvas);
@@ -78,12 +79,16 @@ export class MicrophoneWaveform {
     this.label.textContent = t(muted ? "micMuted" : "yourVoice");
     if (!active || muted) {
       this.pitch = 0;
+      this.rms = 0;
       this.lastPitchTime = 0;
     }
     this.renderPitch();
   }
   renderPitch() {
-    this.pitchLabel.textContent = this.pitch ? `${t("pitch")} · ${Math.round(this.pitch)} Hz` : "";
+    const level = this.active && !this.muted
+      ? `${Math.round(20 * Math.log10(Math.max(this.rms, 0.000001)))} dBFS`
+      : "";
+    this.pitchLabel.textContent = [level, this.pitch ? `${Math.round(this.pitch)} Hz` : ""].filter(Boolean).join(" · ");
   }
   draw(frame, time) {
     if (!this.active || document.hidden) return;
@@ -97,7 +102,8 @@ export class MicrophoneWaveform {
         energy += value * value;
       }
     }
-    const audible = samples && Math.sqrt(energy / samples.length) >= 0.0025;
+    this.rms = samples?.length ? Math.sqrt(energy / samples.length) : 0;
+    const audible = samples && this.rms >= 0.003;
     if (!audible || time - this.lastPitchTime >= 100) {
       this.pitch = audible ? estimatePitch(samples, frame.sampleRate) : 0;
       this.lastPitchTime = time;
@@ -110,7 +116,8 @@ export class MicrophoneWaveform {
     ctx.moveTo(0, h / 2);
     ctx.lineTo(w, h / 2);
     ctx.stroke();
-    if (!audible) return;
+    // Quiet input still needs visible feedback; pitch requires a stronger signal.
+    if (!samples || this.rms < 0.00003) return;
 
     // A fixed 20 ms window shows pitch as wave spacing and loudness as height.
     // Start at a rising zero crossing to keep sustained notes visually steady.
@@ -119,7 +126,7 @@ export class MicrophoneWaveform {
     for (let i = 1; i < samples.length - count; i++) {
       if (samples[i - 1] <= 0 && samples[i] > 0) { offset = i; break; }
     }
-    const gain = 3.8 / Math.sqrt(Math.max(0.06, peak));
+    const gain = Math.min(80, 3.8 / Math.sqrt(Math.max(0.002, peak)));
     const gradient = ctx.createLinearGradient(0, 0, w, 0);
     gradient.addColorStop(0, this.baseline);
     gradient.addColorStop(0.15, this.color);

@@ -1,0 +1,17 @@
+{
+	auto_https disable_redirects
+	skip_install_trust
+	# Clients connecting by IP may omit SNI; Docker's listener IP is different.
+	default_sni {$VENUS_HTTPS_HOST:192.168.5.151}
+}
+
+# The existing HTTP port redirects to the published HTTPS port.
+http://:80 {
+	redir https://{$VENUS_HTTPS_HOST:192.168.5.151}:{$VENUS_HTTPS_PORT:8033}{uri} 308
+}
+
+https://{$VENUS_HTTPS_HOST:192.168.5.151}:443 {
+	tls internal
+	# Preserve Host for the application's HTTP and WebSocket origin checks.
+	reverse_proxy venus:8032
+}

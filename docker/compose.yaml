@@ -8,16 +8,39 @@ services:
     working_dir: /workspace
     volumes:
       - ..:/workspace
+      - ../runtime:/workspace/runtime   # bind mount instead of named volume 
       - venus-runtime:/workspace/runtime
-    ports:
-      - "8032:8032"
+    expose:
+      - "8032"
     runtime: nvidia
     environment:
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      VENUS_LOG_STDOUT: "1"
+      PYTHONUNBUFFERED: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     init: true
     stdin_open: true
     tty: true
 
+  https:
+    image: caddy:2.11.4-alpine
+    depends_on:
+      - venus
+    ports:
+      - "8032:80"
+      - "${VENUS_HTTPS_PORT:-8033}:443"
+    environment:
+      VENUS_HTTPS_HOST: ${VENUS_HTTPS_HOST:-192.168.5.151}
+      VENUS_HTTPS_PORT: ${VENUS_HTTPS_PORT:-8033}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - venus-https-data:/data
+      - venus-https-config:/config
+    restart: unless-stopped
+
 volumes:
   venus-runtime:
+  venus-https-data:
+  venus-https-config:

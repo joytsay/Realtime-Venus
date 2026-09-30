@@ -1,6 +1,7 @@
 """Serve the real model experience on a local HTTP endpoint."""
 
 import argparse
+import logging
 
 import uvicorn
 
@@ -17,6 +18,10 @@ def main():
     parser.add_argument("--model-type", choices=("audio", "omni"), default="omni")
     parser.add_argument("--demo-config", help="Demo deployment JSON for frontend settings")
     args = parser.parse_args()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     uvicorn.run(
         create_app(
             settings_path=args.config,

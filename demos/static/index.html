@@ -390,7 +390,7 @@
         <ul id="settings-issues"></ul>
       </section>
       <section id="codex-login-panel" class="settings-guidance">
-        <strong data-i18n="codexLoginTitle">Codex login on the server</strong>
+        <strong data-i18n="codexLoginTitle">Backend connection</strong>
         <p id="codex-login-status" role="status"></p>
         <p id="codex-login-help" data-i18n="codexLoginHelp" hidden>On the server, run codex login --device-auth using your configured Codex executable, complete login, then recheck here.</p>
         <button id="recheck-codex" type="button" class="secondary-button" data-i18n="codexRecheck">Recheck login</button>
@@ -454,7 +454,7 @@
             ><svg class="icon"><use href="#i-chevron" /></svg>
           </summary>
           <p class="field-hint" data-i18n="backendHint">
-            Background tasks use the server’s existing Codex connection.
+            Choose the task provider and model connections.
           </p>
           <label
             ><span data-i18n="backendModel">Backend model</span
@@ -486,11 +486,12 @@
             <label><span data-i18n="modelProvider">Provider</span>
               <select id="routing-provider">
                 <option value="codex">Codex</option>
+                <option value="llamacpp">llama.cpp</option>
                 <option value="gemini" data-i18n="geminiOfficial">Gemini</option>
               </select></label>
             <label><span data-i18n="routingModel">Routing model</span>
               <input id="routing-model" autocomplete="off" /></label>
-            <p class="field-hint" data-i18n="modelInheritHint">Blank model: Codex inherits the task model; Gemini uses the default Gemini model below.</p>
+            <p class="field-hint" data-i18n="modelInheritHint">Blank model: use the selected provider’s default model.</p>
             <label><span data-i18n="reasoningEffort">Reasoning effort</span>
               <select id="routing-effort">
               <option value="minimal" data-i18n="effortMinimal">Minimal</option>
@@ -509,6 +510,7 @@
             <label><span data-i18n="modelProvider">Provider</span>
               <select id="response-provider">
                 <option value="codex">Codex</option>
+                <option value="llamacpp">llama.cpp</option>
                 <option value="gemini" data-i18n="geminiOfficial">Gemini</option>
               </select></label>
             <label><span data-i18n="responseModel">Summary model</span>
@@ -528,6 +530,7 @@
             <label><span data-i18n="modelProvider">Provider</span>
               <select id="multimodal-provider">
                 <option value="codex">Codex</option>
+                <option value="llamacpp">llama.cpp</option>
                 <option value="gemini" data-i18n="geminiOfficial">Gemini</option>
               </select></label>
             <label><span data-i18n="multimodalModel">Multimodal model</span>
@@ -545,7 +548,7 @@
           </fieldset>
           <fieldset>
             <legend data-i18n="geminiSettings">Official Gemini connection</legend>
-            <p class="field-hint" data-i18n="geminiHint">Calls go directly to Google. Used only by roles explicitly set to Gemini; General still uses Codex.</p>
+            <p class="field-hint" data-i18n="geminiHint">Calls go directly to Google. Used only by roles explicitly set to Gemini.</p>
             <label><span data-i18n="geminiDefaultModel">Default Gemini model</span>
               <input id="gemini-model" autocomplete="off" required /></label>
             <label><span>Gemini API Key</span>
@@ -554,7 +557,14 @@
             <p class="field-hint" data-i18n="geminiKeyHint">Leave blank to keep the saved key or use GEMINI_API_KEY / GOOGLE_API_KEY on the server. Saved keys are never returned to the browser.</p>
           </fieldset>
           <p class="field-hint" data-i18n="effortHint">Save and start a new conversation to apply changes.</p>
-          <label
+          <label><span data-i18n="generalProvider">Task agent provider</span>
+              <select id="general-provider"><option value="codex">Codex</option><option value="llamacpp">llama.cpp</option></select></label>
+            <label><span data-i18n="llamaUrl">llama.cpp server URL</span>
+              <input id="llama-url" type="url" required /></label>
+            <label><span data-i18n="llamaModel">llama.cpp default model</span>
+              <input id="llama-model" required /></label>
+            <p class="field-hint" data-i18n="llamaHint">llama.cpp supports text and workspace file tools. Shell, web browsing and media understanding require another provider.</p>
+            <label
             ><span data-i18n="codexPath">Codex executable</span
             ><input id="backend-binary" required autocomplete="off"
           /></label>
@@ -575,6 +585,6 @@
       </form>
     </dialog>
     <div id="toast" class="toast" role="status" hidden></div>
-    <script type="module" src="/static/app.js?v=20260921-model-modes"></script>
+    <script type="module" src="/static/app.js?v=20261007-mic-level"></script>
   </body>
 </html>

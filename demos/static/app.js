@@ -1,13 +1,13 @@
-import { t, getLanguage, setLanguage } from "./i18n.js?v=20260921-model-modes";
+import { t, getLanguage, setLanguage } from "./i18n.js?v=20260930-llamacpp";
 import { Presence } from "./presence.js";
 import { AudioPlayer, encode } from "./audio.js";
 import { MediaCapture } from "./capture.js";
-import { MicrophoneWaveform } from "./waveform.js?v=20260921-model-modes";
+import { MicrophoneWaveform } from "./waveform.js?v=20261007-mic-level";
 import { TaskTray } from "./tasks.js?v=20260921-model-modes";
 
 const $ = (id) => document.getElementById(id);
 const state = {
-  mode: "camera",
+  mode: "audio",
   modelType: null,
   phase: "idle",
   connected: false,
@@ -141,7 +141,7 @@ function render() {
       "aria-pressed",
       String(button.dataset.mode === state.mode),
     );
-    button.hidden = button.dataset.mode === (state.modelType === "audio" ? "camera" : "audio");
+    button.hidden = state.modelType === "audio" && button.dataset.mode === "camera";
     button.disabled = busy || state.checkingSettings || !state.modelType;
   }
   $("start-button").hidden = state.connected;
@@ -272,7 +272,7 @@ async function refreshStatus(fresh = false) {
         media.pause(); media.removeAttribute("src"); media.load();
       }
       state.modelType = status.model_type;
-      state.mode = status.model_type === "audio" ? "audio" : "camera";
+      state.mode = "audio";
     }
     state.configured = status.configured;
     return status;
@@ -306,7 +306,7 @@ async function requireSettings() {
 async function chooseMode(mode) {
   if (state.connected || state.connecting || state.stopping) return;
   if (await requireSettings()) {
-    if (mode === "file" || mode === (state.modelType === "audio" ? "audio" : "camera")) setMode(mode);
+    if (mode === "file" || mode === "audio" || (mode === "camera" && state.modelType === "omni")) setMode(mode);
   }
 }
 async function chooseVideo() {
@@ -700,9 +700,23 @@ function updateProviders() {
   const busy = state.connected || state.connecting || state.stopping;
   for (const role of ["routing", "response", "multimodal"]) {
     const gemini = $(`${role}-provider`).value === "gemini";
-    $(`${role}-effort`).closest("label").hidden = gemini;
-    $(`${role}-effort`).disabled = busy || gemini;
+    const local = $(`${role}-provider`).value === "llamacpp";
+    $(`${role}-effort`).closest("label").hidden = gemini || local;
+    $(`${role}-effort`).disabled = busy || gemini || local;
     $(`${role}-model`).placeholder = gemini ? $("gemini-model").value : "";
+  }
+  const localGeneral = $("general-provider").value === "llamacpp";
+  for (const id of ["backend-model", "backend-effort"]) {
+    $(id).closest("label").hidden = localGeneral;
+    $(id).disabled = busy || localGeneral;
+  }
+  const usesCodex = !localGeneral || ["response", "multimodal"].some(role => $(`${role}-provider`).value === "codex") || ($("routing-mode").value === "auto" && $("routing-provider").value === "codex");
+  $("backend-binary").closest("label").hidden = !usesCodex;
+  $("backend-binary").disabled = busy || !usesCodex;
+  const usesLocal = localGeneral || ["routing", "response", "multimodal"].some(role => $(`${role}-provider`).value === "llamacpp");
+  for (const id of ["llama-url", "llama-model"]) {
+    $(id).closest("label").hidden = !usesLocal;
+    $(id).disabled = busy || !usesLocal;
   }
   $("multimodal-codex-audio-hint").hidden = $("multimodal-provider").value !== "codex";
 }
@@ -714,10 +728,12 @@ for (const role of ["routing", "response", "multimodal"]) {
   };
 }
 $("gemini-model").oninput = updateProviders;
+$("general-provider").onchange = updateProviders;
 function renderCodexLogin() {
   const status = state.configuration?.codex_login?.state || "error";
-  $("codex-login-status").textContent = t(`codexLogin_${status}`);
-  $("codex-login-help").hidden = status === "logged_in";
+  $("codex-login-status").textContent = ["ready", "not_required"].includes(status) || state.configuration?.data?.general_provider === "llamacpp"
+    ? state.configuration.codex_login.message : t(`codexLogin_${status}`);
+  $("codex-login-help").hidden = ["logged_in", "ready", "not_required"].includes(status) || state.configuration?.data?.general_provider === "llamacpp";
 }
 $("recheck-codex").onclick = async () => {
   const button = $("recheck-codex");
@@ -730,7 +746,7 @@ $("recheck-codex").onclick = async () => {
     state.configuration.codex_login = result.codex_login;
     state.configured = result.configured;
     renderCodexLogin();
-    showSettingsIssues(settingsIssues(result.codex_login?.state === "logged_in" ? [] : [result.codex_login.message]));
+    showSettingsIssues(settingsIssues(result.check?.problems || []));
     render();
   } catch {
     $("codex-login-status").textContent = t("settingsLoadFailed");
@@ -740,7 +756,7 @@ function settingsIssues(serverProblems = []) {
   const issues = [];
   const add = (id, key) => { if (!issues.some(x => x.id === id)) issues.push({id, message: t(key)}); };
   if (!$("backend-workspace").value.trim()) add("backend-workspace", "workspaceRequired");
-  if (!$("backend-binary").value.trim()) add("backend-binary", "codexRequired");
+  if (!$("backend-binary").disabled && !$("backend-binary").value.trim()) add("backend-binary", "codexRequired");
   const usesGemini = $("response-provider").value === "gemini" || $("multimodal-provider").value === "gemini" || ($("routing-mode").value === "auto" && $("routing-provider").value === "gemini");
   if (usesGemini && !state.configuration?.gemini_key_configured && !$("gemini-key").value.trim()) add("gemini-key", "geminiRequired");
   for (const node of $("settings-form").querySelectorAll("input,select")) {
@@ -810,6 +826,9 @@ async function openSettings(required = false) {
     state.configuration = await response.json();
     renderCodexLogin();
     const data = state.configuration.data;
+    $("general-provider").value = data.general_provider;
+    $("llama-url").value = data.llamacpp.base_url;
+    $("llama-model").value = data.llamacpp.model;
     $("backend-workspace").value = data.workspace || "";
     $("gemini-model").value = data.gemini.model;
     $("gemini-key").value = "";
@@ -860,6 +879,9 @@ $("settings-form").onsubmit = async (event) => {
   button.disabled = true;
   try {
     const data = structuredClone(state.configuration.data);
+    data.general_provider = $("general-provider").value;
+    data.llamacpp.base_url = $("llama-url").value.trim();
+    data.llamacpp.model = $("llama-model").value.trim();
     data.workspace = $("backend-workspace").value.trim();
     data.language = $("reply-language").value;
     data.feedback.proactive_progress = $("proactive-progress").value === "true";

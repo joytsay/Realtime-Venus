@@ -2,7 +2,7 @@
 
 **English** · [简体中文](README_ZH.md) · [Project overview](../README.md) · [Harness](../harness/README.md)
 
-Browser demo with Realtime-Venus-Omni or Realtime-Venus-Audio and a Codex-backed Harness. Choose Audio for microphone/audio upload, or Omni for camera with microphone/video upload.
+Browser demo with Realtime-Venus-Omni or Realtime-Venus-Audio and a Codex-backed Harness. Both support microphone-only input using Voice. Audio also supports audio upload; Omni also supports camera with microphone and video upload.
 
 ## Two loops, one conversation
 
@@ -73,6 +73,7 @@ Open **[http://localhost:8032](http://localhost:8032)** and start a conversation
 | Input mode | What to do |
 | --- | --- |
 | **Audio · microphone** | Allow microphone access and listen through your local speakers. |
+| **Omni · Voice** | Use only the microphone; no camera access is requested. |
 | **Audio · audio upload** | Upload WAV, MP3, M4A, FLAC, OGG or other audio, up to **200 MB**. |
 | **Omni · camera** | Share the camera and microphone together; the page shows a live preview. |
 | **Omni · video upload** | Choose Video and upload a local file, up to **200 MB**. Its soundtrack and sampled frames are streamed to the model. |
@@ -111,7 +112,7 @@ The service supports **one active conversation**. It listens on loopback by defa
 
 Configuration steps:
 
-1. Choose `model.type`: `video` (also accepts `omni`) offers camera with microphone and video upload; `audio` offers microphone and audio upload.
+1. Choose `model.type`: `video` (also accepts `omni`) offers microphone-only Voice, camera with microphone, and video upload; `audio` offers microphone and audio upload.
 2. Set `model.path` to the complete checkpoint directory, or the downloaded Hugging Face root containing both variants. The modes load separate checkpoints.
 3. Set `model.reference_audio` to a reference voice file, or leave it empty for the checkpoint’s default voice.
 4. Point `harness.config` to your Harness configuration and follow its README to set workspace, component models and timeouts. The default is `harness/config.json`.
@@ -185,3 +186,18 @@ Use the same `--config` file for preflight and startup. Each checkout manages on
 | `runtime/logs/stack.log` | Detached startup and supervision. |
 | the file referenced by `harness.config` | Saved model/task preferences and workspace selection. |
 | `runtime/workspace/` | Example task workspace (if configured). Generated files remain after a session; browser download links are session-scoped. |
+
+### Native llama.cpp task backend
+
+Set `general_provider` to `llamacpp` and select `llamacpp` for the `routing`,
+`responses`, and `multimodal` providers to run task calls without Codex login.
+Set `llamacpp.base_url` to your server's `/v1` endpoint and `llamacpp.model` to an
+ID from `/v1/models`. These options are also available in Settings → Task
+connection. Legacy configurations continue to default to Codex.
+
+The local backend supports text answers, summaries, routing, and workspace
+file tools with task continuations. It does not provide Codex shell/web tools
+or media understanding. Startup and session admission verify the local model
+inventory; selecting any active Codex role still requires Codex login.
+See the [Docker local-backend guide](../docker/README.md#local-llamacpp-backend)
+for the audio.cpp AGX connection and context-size limits.

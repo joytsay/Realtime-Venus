@@ -4,6 +4,8 @@
 !docker/Dockerfile
 !docker/Dockerfile.dockerignore
 !docker/install-jetson.sh
+!docker/verify-jetson.sh
+!docker/install-jetson-deps.sh
 !docker/build-torch-libraries.sh
 !pyproject.toml
 !README.md

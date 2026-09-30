@@ -8,10 +8,15 @@ from .settings import load_setup
 def build_harness(setup):
     """Build from HarnessSetup; caller owns the returned agent and must aclose()."""
     direct, planner = task_backends(setup)
+    if setup.general_provider == "llamacpp":
+        from .agents.llamacpp import LlamaCppAgentProvider
+        agent = LlamaCppAgentProvider(setup.general, setup.llamacpp)
+    else:
+        agent = CodexAgentProvider(setup.general)
     return VenusOmniAgentHarness(
         direct,
         planner=planner,
-        general_agent=CodexAgentProvider(setup.general),
+        general_agent=agent,
         general_config=setup.general,
         feedback_config=setup.feedback,
         config=setup.harness,

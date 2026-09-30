@@ -35,40 +35,51 @@ def setup_backend(config: LaunchConfig, allow_login: bool) -> None:
         setup.data["workspace"] = ""
         settings_changed = True
 
-    configured_binary = setup.general.command[0]
-    candidates = (
-        os.getenv("GENERAL_CODEX_BINARY"),
-        configured_binary,
-        shutil.which("codex"),
-        str(config.runtime / "bin/codex"),
-    )
-    binary = next(
-        (resolved for candidate in candidates if candidate and (resolved := shutil.which(candidate))),
-        None,
-    )
-    if not binary:
-        raise RuntimeError("Codex executable is missing. Run bash install.sh.")
-    if binary != configured_binary:
-        setup.data["codex"]["command"] = [binary, *setup.general.command[1:]]
-        settings_changed = True
+    if setup.uses_codex:
+        configured_binary = setup.general.command[0]
+        candidates = (
+            os.getenv("GENERAL_CODEX_BINARY"),
+            configured_binary,
+            shutil.which("codex"),
+            str(config.runtime / "bin/codex"),
+        )
+        binary = next(
+            (resolved for candidate in candidates if candidate and (resolved := shutil.which(candidate))),
+            None,
+        )
+        if not binary:
+            raise RuntimeError("Codex executable is missing. Run bash install.sh.")
+        if binary != configured_binary:
+            setup.data["codex"]["command"] = [binary, *setup.general.command[1:]]
+            settings_changed = True
 
-    if settings_changed:
-        # Reconstruct derived settings after filling or repairing startup defaults.
-        setup = UserSetup(setup.data, config.settings)
-    check = setup.check(web=False)
-    if not check["ok"]:
-        raise RuntimeError("; ".join(check["problems"]))
-    binary = setup.general.command[0]
-    status = subprocess.run(
-        [binary, "login", "status"], capture_output=True, timeout=30
-    )
-    if status.returncode:
-        if not allow_login or not sys.stdin.isatty():
-            raise RuntimeError(
-                f"Codex login required. Run {binary} login --device-auth, then retry."
-            )
-        print("Complete Codex device login in your local browser.", flush=True)
-        subprocess.run([binary, "login", "--device-auth"], check=True)
+        if settings_changed:
+            # Reconstruct derived settings after filling or repairing startup defaults.
+            setup = UserSetup(setup.data, config.settings)
+        check = setup.check(web=False)
+        if not check["ok"]:
+            raise RuntimeError("; ".join(check["problems"]))
+        binary = setup.general.command[0]
+        status = subprocess.run(
+            [binary, "login", "status"], capture_output=True, timeout=30
+        )
+        if status.returncode:
+            if not allow_login or not sys.stdin.isatty():
+                raise RuntimeError(
+                    f"Codex login required. Run {binary} login --device-auth, then retry."
+                )
+            print("Complete Codex device login in your local browser.", flush=True)
+            subprocess.run([binary, "login", "--device-auth"], check=True)
+    else:
+        check = setup.check(web=False)
+        if not check["ok"]:
+            raise RuntimeError("; ".join(check["problems"]))
+    if "llamacpp" in setup.active_providers:
+        from harness.llm.llamacpp import check_server
+        status = check_server(setup.llamacpp)
+        if status["state"] != "ready":
+            raise RuntimeError(status["message"])
+        print(status["message"], flush=True)
     if setup.data["workspace"]:
         setup.workspace.mkdir(parents=True, exist_ok=True)
     if settings_changed:
