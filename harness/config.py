@@ -3,6 +3,7 @@
 import math
 import os
 import re
+from urllib.parse import urlsplit
 from dataclasses import dataclass, field
 
 
@@ -35,8 +36,8 @@ class ModelCallConfig:
 
     def __post_init__(self):
         validate_model_options(self.model, self.effort)
-        if self.provider not in {"codex", "gemini"}:
-            raise ValueError("Provider must be codex or gemini")
+        if self.provider not in {"codex", "gemini", "llamacpp"}:
+            raise ValueError("Provider must be codex, gemini or llamacpp")
         if self.provider == "gemini" and self.model:
             validate_gemini_model(self.model)
         if (
@@ -102,3 +103,25 @@ class Settings:
             codex_timeout_seconds=float(os.getenv("CODEX_TIMEOUT_SECONDS", "180")),
             codex_effort=os.getenv("GENERAL_CODEX_EFFORT") or "low",
         )
+
+
+@dataclass(frozen=True, slots=True)
+class LlamaCppConfig:
+    base_url: str = "http://127.0.0.1:8082/v1"
+    model: str = "bartowski/Qwen2.5-3B-Instruct-GGUF:Q4_K_M"
+    max_tokens: int = 1024
+    max_steps: int = 12
+
+    def __post_init__(self):
+        if not isinstance(self.base_url, str):
+            raise ValueError("llama.cpp base_url must be a URL")
+        url = urlsplit(self.base_url)
+        if (url.scheme not in {"http", "https"} or not url.hostname or
+                url.username or url.password or url.query or url.fragment):
+            raise ValueError("llama.cpp base_url must be an HTTP(S) URL without credentials or query")
+        if not isinstance(self.model, str) or not self.model.strip():
+            raise ValueError("llama.cpp model is required")
+        for name, maximum in (("max_tokens", 32768), ("max_steps", 100)):
+            value = getattr(self, name)
+            if type(value) is not int or not 1 <= value <= maximum:
+                raise ValueError(f"llama.cpp {name} must be between 1 and {maximum}")

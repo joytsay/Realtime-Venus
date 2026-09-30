@@ -42,8 +42,16 @@ class WebConfiguration:
 
     def check(self, setup, *, force_login=False):
         result = setup.check()
-        login = self.login.check(setup.general.command[0], force=force_login)
-        if login["state"] != "logged_in" and login["message"] not in result["problems"]:
+        login = (self.login.check(setup.general.command[0], force=force_login)
+                 if setup.uses_codex else {"state": "not_required", "message": "Codex login is not required"})
+        if "llamacpp" in setup.active_providers:
+            from harness.llm.llamacpp import check_server
+            local = check_server(setup.llamacpp)
+            if local["state"] != "ready":
+                result["problems"].append(local["message"])
+            if not setup.uses_codex:
+                login = local
+        if login["state"] not in {"logged_in", "ready", "not_required"} and login["message"] not in result["problems"]:
             result["problems"].append(login["message"])
         return {"ok": not result["problems"], "problems": result["problems"], "codex_login": login}
 

@@ -8,7 +8,7 @@ from dataclasses import asdict, fields, is_dataclass, replace
 from pathlib import Path
 
 from harness.agents.config import GeneralAgentConfig
-from harness.config import GeminiConfig, ModelCallConfig, RoutingConfig
+from harness.config import GeminiConfig, LlamaCppConfig, ModelCallConfig, RoutingConfig
 from harness.core.config import HarnessConfig
 from harness.jobs.feedback import FeedbackConfig
 from harness.bridge.config import venus_harness_config
@@ -19,6 +19,8 @@ def template():
     harness = replace(harness, delegate=replace(harness.delegate, request_timeout_s=180, oralization_timeout_s=180, result_ttl_ms=600_000))
     return {
         "version": 1,
+        "general_provider": "codex",
+        "llamacpp": asdict(LlamaCppConfig()),
         "language": "zh",
         "workspace": "",
         "codex": {
@@ -91,6 +93,10 @@ class HarnessSetup:
             }}
         self.data = merge(template(), data)
         self.path = Path(path).resolve()
+        self.general_provider = self.data["general_provider"]
+        if self.general_provider not in {"codex", "llamacpp"}:
+            raise ValueError("General provider must be codex or llamacpp")
+        self.llamacpp = settings(LlamaCppConfig(), self.data["llamacpp"])
         self.language = self.data["language"]
         if self.data["version"] != 1 or self.language not in {"zh", "en"}:
             raise ValueError("Invalid configuration version or language")
@@ -154,11 +160,22 @@ class HarnessSetup:
             ),
         )
 
+    @property
+    def active_providers(self):
+        providers = {self.general_provider, self.responses.provider, self.multimodal.provider}
+        if self.routing.mode == "auto":
+            providers.add(self.routing.provider)
+        return providers
+
+    @property
+    def uses_codex(self):
+        return "codex" in self.active_providers
+
     def check(self, *, web=True):
         problems = []
         if web and not self.data["workspace"]:
             problems.append("Configure Task workspace / 请填写任务工作目录")
-        if not shutil.which(self.general.command[0]):
+        if self.uses_codex and not shutil.which(self.general.command[0]):
             problems.append("Codex executable not found / 找不到 Codex 程序")
         calls = [self.responses, self.multimodal]
         if self.routing.mode == "auto":

@@ -216,6 +216,11 @@ class WebAgentSession:
             except (TimeoutError, asyncio.TimeoutError):
                 continue
             finished = processed.output.turn_finished
+            logger.info(
+                "web output session=%s audio=%s disposition=%s text_chars=%d finished=%s",
+                self.session_id, processed.output.audio is not None,
+                processed.audio_disposition, len(processed.model_step.visible_text or ""), finished,
+            )
             if finished:
                 # The audio sink has already enqueued this turn's final chunk.
                 # Let the client flush a short buffered tail without guessing

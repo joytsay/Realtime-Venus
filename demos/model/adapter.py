@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Mapping
+import time
+from typing import Any, Callable, Mapping
 
 from demos.model import wire as sw
 from demos.model.decoding import configure_length_penalty
@@ -112,6 +113,8 @@ class _Session:
         "prefill_attempts",
         "output_requested",
         "output_inflight",
+        "inference_stage",
+        "inference_started_at",
     )
 
     def __init__(self, session_id: str, incarnation: int, model: str) -> None:
@@ -138,6 +141,8 @@ class _Session:
         self.prefill_attempts: dict[str, dict[str, Any]] = {}
         self.output_requested = False
         self.output_inflight = False
+        self.inference_stage = "idle"
+        self.inference_started_at: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +346,11 @@ class RealtimeVenusOmniAdapter:
             sess.audio_samples += len(pcm) // 2
             sess.input_seq += 1
             self._wakeup.set()
+            if sess.input_seq == 1 or sess.input_seq % 10 == 0:
+                _LOG.info(
+                    "audio received session=%s input_seq=%d samples=%d buffered_samples=%d",
+                    sess.session_id, sess.input_seq, len(pcm) // 2, sess.audio_samples,
+                )
         return sw.input_accepted(
             session_id=sess.session_id,
             incarnation=sess.incarnation,
@@ -549,6 +559,14 @@ class RealtimeVenusOmniAdapter:
                 "session_id": sess.session_id,
                 "incarnation": sess.incarnation,
                 "closed": sess.closed,
+                "input_seq": sess.input_seq,
+                "output_step_seq": sess.step_seq,
+                "buffered_audio_samples": sess.audio_samples,
+                "inference_stage": sess.inference_stage,
+                "inference_elapsed_s": (
+                    round(time.monotonic() - sess.inference_started_at, 3)
+                    if sess.inference_started_at is not None else None
+                ),
             },
         }
 
@@ -596,14 +614,7 @@ class RealtimeVenusOmniAdapter:
                     bucket = _Bucket(
                         audio=np.zeros(self._chunk_samples, dtype=np.float32), frames=[]
                     )
-                await asyncio.to_thread(
-                    self._official.streaming_prefill,
-                    bucket.audio,
-                    bucket.frames,
-                    None,
-                    1,
-                    False,
-                )
+                await self._prefill_bucket(sess, bucket, is_backend=True)
             step, finished = await self._generate_step(
                 sess, gen_id, gen_epoch, is_backend=True
             )
@@ -614,14 +625,7 @@ class RealtimeVenusOmniAdapter:
         bucket = self._collect_bucket(sess)
         if bucket is None:
             return False
-        await asyncio.to_thread(
-            self._model.streaming_prefill,
-            bucket.audio,
-            bucket.frames,
-            None,
-            1,
-            False,
-        )
+        await self._prefill_bucket(sess, bucket, is_backend=False)
         if sess.fg_gen is None:
             sess.fg_gen = self._allocate_generation(sess, prefix="foreground")
             sess.step_seq = 0
@@ -636,19 +640,61 @@ class RealtimeVenusOmniAdapter:
             sess.fg_gen = None
         return True
 
+    async def _prefill_bucket(
+        self, sess: _Session, bucket: _Bucket, *, is_backend: bool
+    ) -> None:
+        import numpy as np
+
+        rms = (
+            float(np.sqrt(np.mean(np.square(bucket.audio))))
+            if len(bucket.audio) else 0.0
+        )
+        _LOG.info(
+            "model prefill started session=%s backend=%s samples=%d frames=%d rms=%.6f",
+            sess.session_id, is_backend, len(bucket.audio), len(bucket.frames), rms,
+        )
+        model = self._official if is_backend else self._model
+        await self._model_call(
+            sess, "prefill", model.streaming_prefill,
+            bucket.audio, bucket.frames, None, 1, False,
+        )
+
+    async def _model_call(
+        self, sess: _Session, stage: str, function: Callable[..., Any], *args, **kwargs
+    ) -> Any:
+        started = time.monotonic()
+        sess.inference_stage = stage
+        sess.inference_started_at = started
+        try:
+            result = await asyncio.to_thread(function, *args, **kwargs)
+        except BaseException:
+            sess.inference_stage = f"{stage}_failed"
+            raise
+        else:
+            sess.inference_stage = "idle"
+            _LOG.info(
+                "model %s completed session=%s elapsed_s=%.3f",
+                stage, sess.session_id, time.monotonic() - started,
+            )
+            return result
+        finally:
+            sess.inference_started_at = None
+
     async def _generate_step(
         self, sess: _Session, gen_id: str, gen_epoch: int, *, is_backend: bool
     ) -> tuple[dict[str, Any], bool]:
         gen_fn = (self._official if is_backend else self._model).streaming_generate
         # delta tracking: snapshot total_ids length right before generate
         prev_len = sess.prev_total_len
-        result = await asyncio.to_thread(
-            lambda: gen_fn(
-                prompt_wav_path=None,
-                decode_mode="sampling",
-                max_new_speak_tokens_per_chunk=self._max_speak,
-                **self._generation_options,
-            )
+        _LOG.info(
+            "model generate started session=%s backend=%s", sess.session_id, is_backend
+        )
+        result = await self._model_call(
+            sess, "generate", gen_fn,
+            prompt_wav_path=None,
+            decode_mode="sampling",
+            max_new_speak_tokens_per_chunk=self._max_speak,
+            **self._generation_options,
         )
         ids = list(self._official.total_ids)
         delta = tuple(ids[prev_len:])
@@ -672,6 +718,10 @@ class RealtimeVenusOmniAdapter:
         sess.prev_total_len = len(ids)
         wave = None if result.get("is_listen") else result.get("audio_waveform")
         audio_dict = sw.generated_audio_dict(wave, 24_000)
+        _LOG.info(
+            "model output session=%s listen=%s end=%s tokens=%d audio=%s",
+            sess.session_id, result.get("is_listen"), result.get("end_of_turn"), len(delta), audio_dict is not None,
+        )
         audio_chunk_seq = None
         if audio_dict is not None:
             sess.audio_seq += 1

@@ -60,6 +60,7 @@ class StackSupervisor:
     ):
         self.config = config
         self.commands = {"model": model_command, "web": web_command}
+        self.log_stdout = os.getenv("VENUS_LOG_STDOUT") == "1"
         self.children: dict[str, subprocess.Popen] = {}
         self.stopping = False
         self.state = {
@@ -80,9 +81,14 @@ class StackSupervisor:
         env.setdefault("OMP_NUM_THREADS", "1")
         env.setdefault("MKL_NUM_THREADS", "1")
         env.setdefault("MAX_NUM_FRAMES", "100000")
-        with (self.config.runtime / "logs" / f"{name}.log").open(
-            "ab", buffering=0
-        ) as log:
+        if self.log_stdout:
+            env["PYTHONUNBUFFERED"] = "1"
+        output = (
+            contextlib.nullcontext(None)
+            if self.log_stdout
+            else (self.config.runtime / "logs" / f"{name}.log").open("ab", buffering=0)
+        )
+        with output as log:
             child = subprocess.Popen(
                 self.commands[name],
                 cwd=self.config.root,
@@ -102,8 +108,13 @@ class StackSupervisor:
     def check_children(self) -> None:
         for name, child in self.children.items():
             if child.poll() is not None:
+                location = (
+                    "see service output above"
+                    if self.log_stdout
+                    else f"see runtime/logs/{name}.log"
+                )
                 raise RuntimeError(
-                    f"{name} exited with code {child.returncode}; see runtime/logs/{name}.log"
+                    f"{name} exited with code {child.returncode}; {location}"
                 )
 
     def wait_ready(self, url: str) -> None:

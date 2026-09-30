@@ -13,13 +13,25 @@ WORKDIR /opt/venus
 COPY docker/build-torch-libraries.sh ./docker/build-torch-libraries.sh
 RUN bash docker/build-torch-libraries.sh
 
+# Keep downloads across retries, and installed dependencies across source edits.
+COPY demos/requirements.txt ./demos/requirements.txt
+COPY harness/requirements.txt ./harness/requirements.txt
+COPY docker/install-jetson-deps.sh ./docker/install-jetson-deps.sh
+RUN --mount=type=cache,id=venus-jetson-uv,target=/root/.cache/uv \
+    UV_CACHE_DIR=/root/.cache/uv UV_LINK_MODE=copy bash docker/install-jetson-deps.sh
+
 COPY pyproject.toml README.md LICENSE install.sh ./
 COPY demos/ ./demos/
 COPY harness/ ./harness/
 COPY docker/install-jetson.sh ./docker/install-jetson.sh
 
-RUN bash docker/install-jetson.sh \
+RUN --mount=type=cache,id=venus-jetson-uv,target=/root/.cache/uv \
+    UV_CACHE_DIR=/root/.cache/uv UV_LINK_MODE=copy bash docker/install-jetson.sh \
     && rm -rf runtime/cache
+
+# Cache installation even if verification fails or its checks change.
+COPY docker/verify-jetson.sh ./docker/verify-jetson.sh
+RUN bash docker/verify-jetson.sh
 
 # Keep the built environment outside the source bind mount and runtime volume.
 ENV VENUS_PYTHON=/opt/venus/runtime/venv/bin/python \

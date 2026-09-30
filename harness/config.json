@@ -30,20 +30,20 @@
     "model": null,
     "effort": "low",
     "timeout_s": 30.0,
-    "provider": "codex",
+    "provider": "llamacpp",
     "mode": "general"
   },
   "responses": {
     "model": null,
     "effort": "low",
     "timeout_s": 180.0,
-    "provider": "codex"
+    "provider": "llamacpp"
   },
   "multimodal": {
     "model": null,
     "effort": "low",
     "timeout_s": 180.0,
-    "provider": "codex"
+    "provider": "llamacpp"
   },
   "gemini": {
     "model": "gemini-flash-latest",
@@ -112,5 +112,12 @@
       "speech_hold_ms": 250,
       "manager_tick_ms": 50
     }
+  },
+  "general_provider": "llamacpp",
+  "llamacpp": {
+    "base_url": "http://host.docker.internal:8082/v1",
+    "model": "bartowski/Qwen2.5-3B-Instruct-GGUF:Q4_K_M",
+    "max_tokens": 1024,
+    "max_steps": 12
   }
 }
