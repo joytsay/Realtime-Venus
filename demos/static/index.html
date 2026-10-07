@@ -14,7 +14,7 @@
     />
     <title>Realtime Venus — Stay in the moment</title>
     <link id="brand-icon" rel="icon" type="image/png" href="/static/venus-logo.png" />
-    <link rel="stylesheet" href="/static/style.css?v=20261007-text-chat" />
+    <link rel="stylesheet" href="/static/style.css?v=20261007-prompt-settings" />
   </head>
   <body data-phase="idle" data-mode="audio">
     <div class="atmosphere" aria-hidden="true">
@@ -411,11 +411,6 @@
             ><select id="microphone-device">
               <option value="" data-i18n="defaultDevice">System default</option>
             </select></label
-          ><label
-            ><span data-i18n="camera">Camera</span
-            ><select id="camera-device">
-              <option value="" data-i18n="defaultDevice">System default</option>
-            </select></label
           >
           <p class="field-hint" data-i18n="deviceHint">
             Device names appear after you allow access.
@@ -567,6 +562,11 @@
             <label><span data-i18n="llamaModel">llama.cpp default model</span>
               <input id="llama-model" required /></label>
             <p class="field-hint" data-i18n="llamaHint">llama.cpp supports text and workspace file tools. Shell, web browsing and media understanding require another provider.</p>
+            <label for="conversation-instructions"><span data-i18n="conversationInstructions">Instructions · prompt.csv</span>
+              <textarea id="conversation-instructions" rows="12" aria-describedby="instructions-hint" spellcheck="false"></textarea></label>
+            <p id="instructions-hint" class="field-hint" data-i18n="instructionsHint">Save CSV, then start a new conversation to apply instructions to Venus and llama.cpp tasks.</p>
+            <button id="save-prompt-csv" type="button" class="secondary-button" data-i18n="savePromptCsv">Save CSV</button>
+            <p id="prompt-save-message" class="field-hint" role="status"></p>
             <label
             ><span data-i18n="codexPath">Codex executable</span
             ><input id="backend-binary" required autocomplete="off"
@@ -588,6 +588,6 @@
       </form>
     </dialog>
     <div id="toast" class="toast" role="status" hidden></div>
-    <script type="module" src="/static/app.js?v=20261007-audio-controls"></script>
+    <script type="module" src="/static/app.js?v=20261007-audio-only"></script>
   </body>
 </html>

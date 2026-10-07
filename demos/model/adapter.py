@@ -191,6 +191,7 @@ class RealtimeVenusOmniAdapter:
         self._decoding_implementation = "not_prepared"
         self._generation_options: dict[str, Any] = {}
         self._session: _Session | None = None
+        self._opening_session: _Session | None = None
         self._open_lock = asyncio.Lock()
         self._turn_lock = asyncio.Lock()  # serializes model forward passes
         self._wakeup = asyncio.Event()
@@ -282,7 +283,14 @@ class RealtimeVenusOmniAdapter:
             sess = _Session(session_id, incarnation, model)
             # Re-prepare the model for this session (prepare is session-scoped,
             # single-use: reset_memory first if a previous session used it).
-            await asyncio.to_thread(self._prepare_for_session, length_penalty)
+            self._opening_session = sess
+            _LOG.info("model prepare started session=%s", session_id)
+            try:
+                await self._model_call(
+                    sess, "prepare", self._prepare_for_session, length_penalty
+                )
+            finally:
+                self._opening_session = None
             self._session = sess
             sess.driver = asyncio.create_task(
                 self._driver_loop(), name=f"adapter-driver:{session_id}"
@@ -309,6 +317,19 @@ class RealtimeVenusOmniAdapter:
     def _prepare_for_session(self, length_penalty: float = 1.0) -> None:
         """Block in the model thread: reset + prepare a fresh duplex session."""
 
+        from harness.instructions import read_instructions
+
+        instructions = read_instructions().strip()
+        system_prompt = self._system_prompt
+        if instructions:
+            from demos.model.prompts import REALTIME_VENUS_SYSTEM_PROMPT
+
+            system_prompt = (system_prompt or REALTIME_VENUS_SYSTEM_PROMPT) + "\n\n" + instructions
+        _LOG.info(
+            "model prepare instructions chars=%d custom_instructions_chars=%d",
+            len(system_prompt or ""), len(instructions),
+        )
+
         if self._needs_duplex:
             self._model = self._model.as_duplex()
             self._official = _official(self._model)
@@ -321,10 +342,16 @@ class RealtimeVenusOmniAdapter:
                 runtime.reset_memory()
             except Exception:  # noqa: BLE001 - reset may not be needed on a fresh load
                 _LOG.debug("reset_memory skipped/failed", exc_info=True)
+        started = time.monotonic()
+        _LOG.info("model voice and system prompt initialization started")
         self._model.prepare(
-            prefix_system_prompt=self._system_prompt,
+            prefix_system_prompt=system_prompt,
             ref_audio=self._ref_audio,
             prompt_wav_path=self._prompt_wav_path,
+        )
+        _LOG.info(
+            "model voice and system prompt initialization completed elapsed_s=%.3f",
+            time.monotonic() - started,
         )
         try:
             options, implementation = configure_length_penalty(
@@ -562,10 +589,11 @@ class RealtimeVenusOmniAdapter:
             self._needs_duplex = callable(getattr(self._model, "as_duplex", None))
 
     async def health(self) -> dict[str, Any]:
-        sess = self._session
+        sess = self._opening_session or self._session
         sp = self._system_prompt
         return {
             "model_revision": self._model_revision,
+            "initializing": self._opening_session is not None,
             "delegate_audio_filtered": self.delegate_audio_filtered,
             "duplex_decoding": {
                 "length_penalty": self._length_penalty,
@@ -674,9 +702,10 @@ class RealtimeVenusOmniAdapter:
             sess.session_id, is_backend, len(bucket.audio), len(bucket.frames), rms,
         )
         model = self._official if is_backend else self._model
+        frames = None if self._model_name == "Realtime-Venus-Audio" else bucket.frames
         await self._model_call(
             sess, "prefill", model.streaming_prefill,
-            bucket.audio, bucket.frames, bucket.texts or None, 1, False,
+            bucket.audio, frames, bucket.texts or None, 1, False,
         )
 
     async def _model_call(
@@ -794,7 +823,7 @@ class RealtimeVenusOmniAdapter:
             audio = np.pad(audio, (0, self._chunk_samples - len(audio)))
         texts = list(sess.texts)
         sess.texts.clear()
-        frames = sw.decode_frames(list(sess.frames))
+        frames = sw.decode_frames(list(sess.frames)) if sess.frames else []
         sess.frames.clear()
         sess.consumed_input_seq = sess.input_seq
         return _Bucket(audio=audio, frames=frames, texts=texts)

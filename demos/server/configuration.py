@@ -8,6 +8,7 @@ import tempfile
 from dataclasses import asdict
 from pathlib import Path
 from harness.settings import save_setup as save_harness_setup, write_json
+from harness.instructions import read_instructions, instructions_revision
 from demos.deployment import frontend_settings, updated_frontend_document
 
 from demos.settings import UserSetup, config_path, load_setup, save_setup
@@ -22,9 +23,9 @@ class WebConfiguration:
         self.login = CodexLoginCheck()
 
     def revision(self):
-        if not self.demo_path:
-            return hashlib.sha256(self.path.read_bytes()).hexdigest() if self.path.exists() else "new"
-        parts = [p.read_bytes() if p.exists() else b"new" for p in (self.path, self.demo_path)]
+        paths = (self.path, self.demo_path) if self.demo_path else (self.path,)
+        parts = [p.read_bytes() if p.exists() else b"new" for p in paths]
+        parts.append(instructions_revision().encode("ascii"))
         return hashlib.sha256(b"\0".join(parts)).hexdigest()
 
     def load(self):
@@ -71,6 +72,8 @@ class WebConfiguration:
             "gemini_key_configured": bool(setup.gemini.resolved_key()),
             "revision": self.revision(),
             "token": self.token,
+            "instructions": read_instructions(),
+            "instructions_revision": instructions_revision(),
             "configured": self.path.exists() and result["ok"],
             "check": result,
             "codex_login": result["codex_login"],

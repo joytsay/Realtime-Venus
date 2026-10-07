@@ -10,6 +10,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from harness.llm.llamacpp import LlamaCppBackend
+from harness.instructions import read_instructions
 from .codex import FINAL_SCHEMA, parse_result
 from .context import FrozenAgentContext
 from .contracts import AgentEvent, AgentResult
@@ -45,6 +46,7 @@ class Lineage:
 class LlamaCppAgentProvider:
     def __init__(self, config, llama_config, *, backend=None):
         self.config, self.llama_config = config, llama_config
+        self.instructions = read_instructions().strip()
         self.backend = backend or LlamaCppBackend(llama_config, timeout_s=config.execution_timeout_s)
         self._history = {}
         self._outcomes = {}
@@ -112,7 +114,12 @@ class LlamaCppAgentProvider:
 
     async def _execute(self, request, emit, lineage, context):
         # Keep prior answers for continuations; do not carry obsolete frozen inputs.
-        messages = [{"role": "system", "content": INSTRUCTIONS}, *lineage.messages[-4:],
+        system_prompt = INSTRUCTIONS
+        if self.instructions:
+            system_prompt += ("\nUser-configured instructions for the answer in full_result:\n"
+                              + self.instructions
+                              + "\nKeep the JSON action/result format specified above.")
+        messages = [{"role": "system", "content": system_prompt}, *lineage.messages[-4:],
                     {"role": "user", "content": json.dumps({"objective": request.objective,
                      "language": request.context.get("language", "zh"),
                      "inventory": context.fetch(context.identity, {"section": "inventory", "max_chars": 4000})}, ensure_ascii=False)}]

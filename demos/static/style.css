@@ -132,7 +132,8 @@ body {
 }
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 button,
@@ -1230,6 +1231,12 @@ select {
   background: var(--field);
   font-size: 12px;
   min-height: 38px;
+}
+textarea {
+  resize: vertical;
+  min-height: 180px;
+  font-family: inherit;
+  line-height: 1.6;
 }
 input::placeholder {
   color: var(--faint);

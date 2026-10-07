@@ -1,9 +1,9 @@
-import { t, getLanguage, setLanguage } from "./i18n.js?v=20261007-text-chat";
+import { t, getLanguage, setLanguage } from "./i18n.js?v=20261007-session-init";
 import { Presence } from "./presence.js";
 import { AudioPlayer, encode } from "./audio.js";
 import { MediaCapture } from "./capture.js";
-import { MicrophoneWaveform } from "./waveform.js?v=20261007-text-chat";
-import { TaskTray } from "./tasks.js?v=20261007-text-chat";
+import { MicrophoneWaveform } from "./waveform.js?v=20261007-session-init";
+import { TaskTray } from "./tasks.js?v=20261007-session-init";
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -130,7 +130,6 @@ function render() {
   $("frontend-model-name").textContent = state.modelType ? `REALTIME-VENUS-${state.modelType.toUpperCase()}` : "REALTIME-VENUS";
   for (const node of document.querySelectorAll("[data-media-key]")) node.textContent = mediaText(node.dataset.mediaKey);
   $("video-file").accept = "audio/*,.wav,.mp3,.m4a,.flac,.ogg,.opus,.aac,.aiff,.aif,.wma";
-  $("camera-device").closest("label").hidden = true;
   $("preview-audio").hidden = !audioUpload();
   $("preview-video").hidden = audioUpload();
   $("media-preview").classList.toggle("audio-file", audioUpload());
@@ -405,7 +404,7 @@ function connect(epoch) {
     const timer = setTimeout(() => {
       if (!settled) {
         settled = true;
-        reject(Error(t("connectionFailed")));
+        reject(Error(t("initializationTimeout")));
         socket.close();
       }
     }, 180000);
@@ -415,6 +414,11 @@ function connect(epoch) {
       try {
         message = JSON.parse(event.data);
       } catch {
+        return;
+      }
+      if (message.type === "initializing" && !settled) {
+        $("control-hint").textContent = `${t("initializingModel")} · ${message.elapsed_s}s`;
+        $("presence-label").textContent = t("initializingModel");
         return;
       }
       if (message.type === "ready") {
@@ -692,7 +696,6 @@ async function enumerateDevices() {
     const available = await navigator.mediaDevices.enumerateDevices();
     for (const [key, kind] of [
       ["microphone", "audioinput"],
-      ["camera", "videoinput"],
     ]) {
       const select = $(key + "-device");
       select.replaceChildren(new Option(t("defaultDevice"), ""));
@@ -846,6 +849,8 @@ async function openSettings(required = false) {
     $("general-provider").value = data.general_provider;
     $("llama-url").value = data.llamacpp.base_url;
     $("llama-model").value = data.llamacpp.model;
+    $("conversation-instructions").value = state.configuration.instructions || "";
+    $("prompt-save-message").textContent = "";
     $("backend-workspace").value = data.workspace || "";
     $("gemini-model").value = data.gemini.model;
     $("gemini-key").value = "";
@@ -870,7 +875,7 @@ async function openSettings(required = false) {
     void enumerateDevices();
     const busy = state.connected || state.connecting || state.stopping;
     for (const node of $("settings-form").querySelectorAll(
-      "input,select,button",
+      "input,select,textarea,button",
     ))
       node.disabled = busy;
     updateRoutingOptions();
@@ -886,6 +891,33 @@ async function openSettings(required = false) {
     notify(humanError(error), true);
   }
 }
+$("save-prompt-csv").onclick = async () => {
+  if (!state.configuration || state.connected || state.connecting || state.stopping) return;
+  const button = $("save-prompt-csv");
+  button.disabled = true;
+  $("prompt-save-message").textContent = "";
+  try {
+    const response = await fetch("/api/prompt", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Venus-Config-Token": state.configuration.token,
+      },
+      body: JSON.stringify({
+        instructions: $("conversation-instructions").value,
+        revision: state.configuration.instructions_revision,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw Error(result.detail || t("promptSaveFailed"));
+    Object.assign(state.configuration, result);
+    $("prompt-save-message").textContent = t("promptSaved");
+  } catch (error) {
+    $("prompt-save-message").textContent = `${t("promptSaveFailed")} ${humanError(error)}`;
+  } finally {
+    button.disabled = state.connected || state.connecting || state.stopping;
+  }
+};
 $("settings-form").onsubmit = async (event) => {
   event.preventDefault();
   if (!state.configuration || state.connected) return;
@@ -938,7 +970,6 @@ $("settings-form").onsubmit = async (event) => {
     state.configured = result.configured;
     $("gemini-key").value = "";
     devices.microphone = $("microphone-device").value;
-    devices.camera = $("camera-device").value;
     try {
       localStorage.setItem("venus-devices", JSON.stringify(devices));
     } catch {}

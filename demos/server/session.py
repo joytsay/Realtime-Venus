@@ -68,6 +68,8 @@ class WebAgentSession:
     async def run(self):
         await self.websocket.accept()
         tasks = []
+        initialization_started = time.monotonic()
+        progress = asyncio.create_task(self._initialization_progress(initialization_started))
         try:
             if self.mode not in {"omni", "audio"}:
                 raise ValueError("unsupported input mode")
@@ -87,6 +89,12 @@ class WebAgentSession:
                 model=self.resources.model,
                 tokenizer=self.resources.tokenizer,
                 mute_delegate_audio=True,
+            )
+            progress.cancel()
+            await asyncio.gather(progress, return_exceptions=True)
+            logger.info(
+                "web session ready session=%s initialization_elapsed_s=%.3f",
+                self.session_id, time.monotonic() - initialization_started,
             )
             await self.send({"type": "ready", **self.ui_state()})
             tasks = [
@@ -111,6 +119,8 @@ class WebAgentSession:
         finally:
             self._closing = True
             with anyio.CancelScope(shield=True):
+                progress.cancel()
+                tasks.append(progress)
                 if self._video_task:
                     tasks.append(self._video_task)
                 if self._video_idle_task:
@@ -126,6 +136,17 @@ class WebAgentSession:
                         await self.resources.close()
                 with suppress(Exception):
                     await self.websocket.close()
+
+    async def _initialization_progress(self, started):
+        while True:
+            try:
+                await self.send({
+                    "type": "initializing",
+                    "elapsed_s": round(time.monotonic() - started),
+                })
+            except Exception:
+                return
+            await asyncio.sleep(5)
 
     def ui_state(self):
         return {

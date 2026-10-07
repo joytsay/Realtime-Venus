@@ -15,6 +15,7 @@ from .configuration import WebConfiguration
 from .resources import real_resources
 from .session import WebAgentSession
 from demos.variants import model_name
+from harness.instructions import read_instructions, instructions_revision, save_instructions
 
 
 def create_app(
@@ -99,6 +100,35 @@ def create_app(
             raise HTTPException(
                 400, "Invalid settings / 配置无效，请检查输入"
             ) from None
+
+    @app.post("/api/prompt")
+    async def save_prompt(request: Request):
+        same_origin(request)
+        if not secrets.compare_digest(
+            request.headers.get("x-venus-config-token", ""), configuration.token
+        ):
+            raise HTTPException(403, "Open settings before saving")
+        if sessions:
+            raise HTTPException(409, "End your conversation before changing instructions")
+        raw = await request.body()
+        if len(raw) > 128 * 1024:
+            raise HTTPException(413, "Instructions are too large")
+        if sessions:
+            raise HTTPException(409, "End your conversation before changing instructions")
+        try:
+            body = json.loads(raw)
+            if not isinstance(body, dict):
+                raise ValueError("Invalid instructions")
+            save_instructions(body.get("instructions"), body.get("revision"))
+            return {
+                "instructions": read_instructions(),
+                "instructions_revision": instructions_revision(),
+                "revision": configuration.revision(),
+            }
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc)) from None
+        except (ValueError, TypeError, OSError):
+            raise HTTPException(400, "Cannot save prompt.csv; check instructions and file permissions") from None
 
     @app.get("/api/status")
     async def status(fresh: bool = False):

@@ -1,5 +1,12 @@
 const messages = {
   en: {
+    initializingModel: "Preparing voice and instructions",
+    initializationTimeout: "Model preparation exceeded 3 minutes. Check the model prepare logs on the server.",
+    conversationInstructions: "Instructions · prompt.csv",
+    instructionsHint: "Save CSV, then start a new conversation to apply instructions to Venus and llama.cpp tasks.",
+    savePromptCsv: "Save CSV",
+    promptSaved: "Saved prompt.csv. Start a new conversation to apply changes.",
+    promptSaveFailed: "Could not save prompt.csv.",
     textMode: "Text",
     chatPlaceholder: "Type a message to Venus",
     chatSend: "Send",
@@ -208,6 +215,13 @@ const messages = {
       "Your browser could not play the audio. Check audio permissions.",
   },
   zh: {
+    initializingModel: "正在准备语音与指令",
+    initializationTimeout: "模型准备超过 3 分钟，请查看服务端的 model prepare 日志。",
+    conversationInstructions: "指令 · prompt.csv",
+    instructionsHint: "保存 CSV 后，开始新对话，指令将用于 Venus 和 llama.cpp 任务。",
+    savePromptCsv: "保存 CSV",
+    promptSaved: "已保存 prompt.csv。开始新对话以应用更改。",
+    promptSaveFailed: "无法保存 prompt.csv。",
     textMode: "文字",
     chatPlaceholder: "输入消息，与 Venus 聊天",
     chatSend: "发送",
