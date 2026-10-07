@@ -96,6 +96,19 @@ class DuplexProtocolSession:
             self._input_bytes += len(file.data)
             return self._sequence
 
+    async def ingest_text(self, text: str) -> int:
+        async with self._lock:
+            self._ensure_open()
+            data = text.encode("utf-8")
+            if self._input_bytes + len(data) > 64 * 1024 * 1024:
+                raise ValueError("session attachment budget exceeded (64 MiB)")
+            self._sequence += 1
+            self._input_files.append((self._sequence, InputFile(
+                f"typed-message-{self._sequence}.txt", data, "text/plain"
+            )))
+            self._input_bytes += len(data)
+            return self._sequence
+
     async def ingest_audio(self, chunk: AudioChunk) -> int:
         async with self._lock:
             self._ensure_open()

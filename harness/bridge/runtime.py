@@ -114,6 +114,11 @@ class VenusOmniSession:
             w for w in self._owner.list_works() if w["session_id"] == self.session_id
         ]
 
+    async def ingest_user_text(self, text: str) -> int:
+        self._ensure_open()
+        async with self._protocol_lane:
+            return await self._owner.delegate_harness.ingest_user_text(self.session_id, text)
+
     async def ingest_user_audio(self, chunk: AudioChunk) -> int:
         self._ensure_open()
         async with self._protocol_lane:

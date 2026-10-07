@@ -174,6 +174,21 @@ class AudioAppend:
 
 
 @dataclass(frozen=True, slots=True)
+class TextAppend:
+    """A typed user message in the session-wide input order."""
+
+    session_id: str
+    incarnation: int
+    event_seq: int
+    text: str
+
+    def __post_init__(self) -> None:
+        _validate_session_event(self.session_id, self.incarnation, self.event_seq)
+        if not isinstance(self.text, str) or not self.text.strip() or len(self.text) > 4000:
+            raise ValueError("text must contain 1 to 4000 characters")
+
+
+@dataclass(frozen=True, slots=True)
 class VideoFrameAppend:
     """One encoded camera frame in the session-wide input order."""
 
@@ -480,6 +495,8 @@ class VenusOmniServingPort(Protocol):
 
     async def open_session(self, request: OpenSession) -> SessionOpened: ...
 
+    async def append_text(self, request: TextAppend) -> InputAccepted: ...
+
     async def append_audio(self, request: AudioAppend) -> InputAccepted: ...
 
     async def append_video_frame(self, request: VideoFrameAppend) -> InputAccepted: ...
@@ -596,6 +613,7 @@ def _validate_backend_prefill(text: object) -> str:
 __all__ = [
     "PROTOCOL_VERSION",
     "AudioAppend",
+    "TextAppend",
     "AudioFormat",
     "CloseSession",
     "GeneratedAudio",

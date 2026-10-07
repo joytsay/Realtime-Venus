@@ -19,6 +19,7 @@ import httpx
 
 from harness.bridge.serving import (
     AudioAppend,
+    TextAppend,
     AudioFormat,
     CloseSession,
     GeneratedAudio,
@@ -137,6 +138,13 @@ class RemoteOmniServingPort:
             capabilities=capabilities,
             opened_at_ms=int(j["opened_at_ms"]),
         )
+
+    async def append_text(self, request: TextAppend) -> InputAccepted:
+        j = await self._request("POST", f"/sessions/{request.session_id}/text", json={
+            "session_id": request.session_id, "incarnation": request.incarnation,
+            "event_seq": request.event_seq, "text": request.text,
+        })
+        return InputAccepted(**j)
 
     async def append_audio(self, request: AudioAppend) -> InputAccepted:
         body = {

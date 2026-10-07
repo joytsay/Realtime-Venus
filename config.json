@@ -1,7 +1,7 @@
 {
   "model": {
-    "type": "video",
-    "path": "Realtime-Venus-Omni",
+    "type": "audio",
+    "path": "Realtime-Venus-Audio",
     "reference_audio": "",
     "port": 8031,
     "memory_minutes": 40,

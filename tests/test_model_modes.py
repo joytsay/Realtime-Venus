@@ -80,10 +80,10 @@ class ModelModeTests(unittest.TestCase):
                     result=client.get('/api/status').json()
                     self.assertEqual(result['model_type'],mode)
                     self.assertEqual(result['model'],'Realtime-Venus-'+mode.capitalize())
-                    self.assertEqual(result['input_modes'],['audio','audio_file'] if mode=='audio' else ['camera','video'])
+                    self.assertEqual(result['input_modes'],['audio','audio_file','text'] if mode=='audio' else ['camera','video','audio_file','text'])
                     with client.websocket_connect('/ws?mode='+wrong) as socket:
                         self.assertEqual(socket.receive_json()['code'],'input_mode')
-                    with client.websocket_connect('/ws?mode='+mode+'&source='+('video' if mode=='audio' else 'audio_file')) as socket:
+                    with client.websocket_connect('/ws?mode='+mode+'&source='+('video' if mode=='audio' else 'invalid')) as socket:
                         self.assertEqual(socket.receive_json()['code'],'input_mode')
 
 

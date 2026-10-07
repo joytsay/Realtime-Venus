@@ -72,6 +72,9 @@ class DelegateHarness:
     async def ingest_user_file(self, session_id: str, file) -> int:
         return await (await self._session(session_id)).ingest_file(file)
 
+    async def ingest_user_text(self, session_id: str, text: str) -> int:
+        return await (await self._session(session_id)).ingest_text(text)
+
     async def ingest_user_audio(self, session_id: str, chunk: AudioChunk) -> int:
         return await (await self._session(session_id)).ingest_audio(chunk)
 

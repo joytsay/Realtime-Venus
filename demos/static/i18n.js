@@ -1,5 +1,9 @@
 const messages = {
   en: {
+    textMode: "Text",
+    chatPlaceholder: "Type a message to Venus",
+    chatSend: "Send",
+    textHint: "Type a message. Venus replies through your speakers.",
     audio_replaceVideo: "Change audio",
     audio_dropHint: "Drop an audio file here, or choose a file",
     audio_dropTypes: "WAV, MP3, M4A, FLAC, OGG · up to 200 MB",
@@ -204,6 +208,10 @@ const messages = {
       "Your browser could not play the audio. Check audio permissions.",
   },
   zh: {
+    textMode: "文字",
+    chatPlaceholder: "输入消息，与 Venus 聊天",
+    chatSend: "发送",
+    textHint: "输入消息，Venus 会通过扬声器回复。",
     audio_replaceVideo: "更换音频",
     audio_dropHint: "拖入音频，或点击选择文件",
     audio_dropTypes: "WAV、MP3、M4A、FLAC、OGG · 最大 200 MB",

@@ -673,6 +673,9 @@ body[data-phase="speaking"] .speech-wave {
 }
 .mode-switch {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
   padding: 4px;
   border-radius: 99px;
   border: 1px solid var(--line);
@@ -1676,3 +1679,22 @@ html[lang="zh"] .dialog-heading h2 {
 #preview-audio { width:calc(100% - 48px); max-width:560px; margin:72px 24px; }
 .media-preview.audio-file .preview-top,.media-preview.audio-file .preview-bottom { color:var(--ink); background:none; }
 .media-preview.audio-file .preview-badge { color:var(--ink); background:var(--glass); }
+
+.chat-form {
+  display: flex;
+  gap: 8px;
+  width: min(440px, 100%);
+}
+.chat-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--mode-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.chat-form input::placeholder { color: var(--muted); }
+.chat-form input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }

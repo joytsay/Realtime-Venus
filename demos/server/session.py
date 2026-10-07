@@ -71,7 +71,7 @@ class WebAgentSession:
         try:
             if self.mode not in {"omni", "audio"}:
                 raise ValueError("unsupported input mode")
-            if self.input_source not in ({"live", "audio_file"} if self.mode == "audio" else {"live", "video"}):
+            if self.input_source not in ({"live", "audio_file", "text"} if self.mode == "audio" else {"live", "video", "audio_file", "text"}):
                 raise ValueError("unsupported media source")
             self.resources = await self.factory(
                 mode=self.mode, settings_path=self.settings_path
@@ -93,6 +93,8 @@ class WebAgentSession:
                 asyncio.create_task(fn())
                 for fn in (self.receive, self.output, self.works)
             ]
+            if self.input_source == "text":
+                tasks.append(asyncio.create_task(self._video_idle()))
             done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in done:
                 task.result()
@@ -270,6 +272,12 @@ class WebAgentSession:
                 AudioChunk(data=data, start_ms=start, end_ms=start + duration)
             )
             self._audio_end = start + duration
+        elif command == "text":
+            text = message.get("text")
+            if not isinstance(text, str) or not text.strip() or len(text) > 4000:
+                raise ValueError("Text must contain 1 to 4000 characters")
+            await self.host.append_text(text.strip())
+            await self.send({"type": "user_text", "text": text.strip()})
         elif command == "video_frame":
             if self.mode != "omni":
                 raise ValueError("纯语音模式不接收画面")
@@ -306,7 +314,7 @@ class WebAgentSession:
         await self._upload_media(stream)
 
     async def upload_audio(self, stream):
-        if self.input_source != "audio_file" or self.mode != "audio":
+        if self.input_source != "audio_file" or self.mode not in {"audio", "omni"}:
             raise ValueError("请先开始音频文件会话")
         await self._upload_media(stream)
 

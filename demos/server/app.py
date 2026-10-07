@@ -105,7 +105,7 @@ def create_app(
         return {
             "model": frontend_model,
             "model_type": model_type,
-            "input_modes": ["audio", "audio_file"] if model_type == "audio" else ["camera", "video"],
+            "input_modes": ["audio", "audio_file", "text"] if model_type == "audio" else ["camera", "video", "audio_file", "text"],
             "configured": await asyncio.to_thread(configuration.status, force_login=fresh),
             "busy": bool(sessions),
             "upload_limit_mb": 200,
@@ -119,7 +119,7 @@ def create_app(
             return
         mode = websocket.query_params.get("mode", model_type)
         source = websocket.query_params.get("source", "live")
-        valid_source = {"live", "audio_file"} if model_type == "audio" else {"live", "video"}
+        valid_source = {"live", "audio_file", "text"} if model_type == "audio" else {"live", "video", "audio_file", "text"}
         if mode != model_type or source not in valid_source:
             await websocket.accept()
             await websocket.send_json({"type": "fatal_error", "code": "input_mode", "error": "Input source does not match the deployed model"})

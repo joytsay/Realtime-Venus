@@ -134,6 +134,13 @@ def create_app(config: _ServerConfig) -> FastAPI:
         body.setdefault("session_id", sid)
         return body
 
+    @app.post("/sessions/{sid}/text")
+    async def append_text(sid: str, req: Request):
+        try:
+            return await adapter().append_text(await _body_with_session(req, sid))
+        except (AdapterError, ModelNotLoaded) as exc:
+            return _err(exc)
+
     @app.post("/sessions/{sid}/audio")
     async def append_audio(sid: str, req: Request):
         try:

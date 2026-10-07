@@ -14,7 +14,7 @@
     />
     <title>Realtime Venus — Stay in the moment</title>
     <link id="brand-icon" rel="icon" type="image/png" href="/static/venus-logo.png" />
-    <link rel="stylesheet" href="/static/style.css?v=20260921-model-modes" />
+    <link rel="stylesheet" href="/static/style.css?v=20261007-text-chat" />
   </head>
   <body data-phase="idle" data-mode="audio">
     <div class="atmosphere" aria-hidden="true">
@@ -234,13 +234,11 @@
             <svg class="icon"><use href="#i-mic" /></svg
             ><span data-i18n="voiceMode">Voice</span>
           </button>
-          <button class="mode-button" data-mode="camera" aria-pressed="false">
-            <svg class="icon"><use href="#i-camera" /></svg
-            ><span data-i18n="cameraMode">Camera</span>
+          <button class="mode-button" data-mode="text" aria-pressed="false">
+            <svg class="icon"><use href="#i-file" /></svg><span data-i18n="textMode">Text</span>
           </button>
-          <button class="mode-button" data-mode="file" aria-pressed="false">
-            <svg class="icon"><use href="#i-upload" /></svg
-            ><span data-media-key="videoMode">Video</span>
+          <button class="mode-button" data-mode="file" data-upload="audio" aria-pressed="false">
+            <svg class="icon"><use href="#i-upload" /></svg><span data-i18n="audio_videoMode">Upload audio</span>
           </button>
         </div>
         <aside id="setup-banner" class="setup-banner" hidden>
@@ -279,6 +277,11 @@
             <svg class="icon"><use href="#i-sound" /></svg>
           </button>
         </div>
+        <form id="chat-form" class="chat-form">
+          <label class="sr-only" for="chat-input" data-i18n="chatPlaceholder">Type a message to Venus</label>
+          <input id="chat-input" type="text" maxlength="4000" autocomplete="off" placeholder="Type a message to Venus" required />
+          <button id="chat-send" type="submit" class="secondary-button" data-i18n="chatSend">Send</button>
+        </form>
         <p id="control-hint" class="control-hint" data-i18n="startHint">
           Your microphone turns on only when you begin.
         </p>
@@ -585,6 +588,6 @@
       </form>
     </dialog>
     <div id="toast" class="toast" role="status" hidden></div>
-    <script type="module" src="/static/app.js?v=20261007-mic-level"></script>
+    <script type="module" src="/static/app.js?v=20261007-audio-controls"></script>
   </body>
 </html>

@@ -99,6 +99,7 @@ class _Session:
         "audio_buf",
         "frame_buf",
         "frames",
+        "texts",
         "audio_samples",
         "queue",
         "driver",
@@ -128,6 +129,7 @@ class _Session:
         self.audio_samples = 0  # count of 16k samples buffered
         self.audio_buf = bytearray()
         self.frames: list[bytes] = []
+        self.texts: list[str] = []
         self.queue: asyncio.Queue = asyncio.Queue()
         self.driver: asyncio.Task | None = None
         self.stop = asyncio.Event()
@@ -333,6 +335,24 @@ class RealtimeVenusOmniAdapter:
         self._generation_options = options
         self._length_penalty = length_penalty
         self._decoding_implementation = implementation
+
+    async def append_text(self, req: dict[str, Any]) -> dict[str, Any]:
+        sess = self._require(req)
+        text = req.get("text")
+        if not isinstance(text, str) or not text.strip() or len(text) > 4000:
+            raise AdapterError("text must contain 1 to 4000 characters")
+        event_seq = int(req["event_seq"])
+        async with self._turn_lock:
+            if len(sess.texts) >= 8:
+                raise AdapterError("too many pending typed messages")
+            self._fence_event(sess, event_seq)
+            sess.texts.append(text.strip())
+            sess.input_seq += 1
+            self._wakeup.set()
+        return sw.input_accepted(
+            session_id=sess.session_id, incarnation=sess.incarnation,
+            event_seq=event_seq, input_seq=sess.input_seq, accepted_at_ms=sw.now_ms(),
+        )
 
     async def append_audio(self, req: dict[str, Any]) -> dict[str, Any]:
         sess = self._require(req)
@@ -656,7 +676,7 @@ class RealtimeVenusOmniAdapter:
         model = self._official if is_backend else self._model
         await self._model_call(
             sess, "prefill", model.streaming_prefill,
-            bucket.audio, bucket.frames, None, 1, False,
+            bucket.audio, bucket.frames, bucket.texts or None, 1, False,
         )
 
     async def _model_call(
@@ -754,9 +774,9 @@ class RealtimeVenusOmniAdapter:
         if sess.event_seq == 0:
             return None
         # bucket is pure-python; nothing here needs to run in an await context
-        if sess.audio_samples < self._chunk_samples and not sess.frames:
+        if sess.audio_samples < self._chunk_samples and not sess.frames and not sess.texts:
             return None
-        if sess.audio_samples < self._chunk_samples:
+        if sess.audio_samples < self._chunk_samples and not sess.texts:
             # frame(s) but no enough audio yet -> wait for audio (v1 needs audio to drive)
             return None
         # consume up to one chunk of audio + any pending frames
@@ -770,10 +790,14 @@ class RealtimeVenusOmniAdapter:
         audio = sw.pcm16le_to_float32(pcm) if pcm else np.zeros(0, dtype=np.float32)
         # decode wire image bytes -> PIL RGB for the real model; invalid image
         # bytes fall back raw (see serving_wire.decode_frames).
+        if sess.texts and len(audio) < self._chunk_samples:
+            audio = np.pad(audio, (0, self._chunk_samples - len(audio)))
+        texts = list(sess.texts)
+        sess.texts.clear()
         frames = sw.decode_frames(list(sess.frames))
         sess.frames.clear()
         sess.consumed_input_seq = sess.input_seq
-        return _Bucket(audio=audio, frames=frames)
+        return _Bucket(audio=audio, frames=frames, texts=texts)
 
     def _allocate_generation(self, sess: _Session, *, prefix: str) -> tuple[str, int]:
         sess.gen_epoch += 1
@@ -817,11 +841,12 @@ class RealtimeVenusOmniAdapter:
 
 
 class _Bucket:
-    __slots__ = ("audio", "frames")
+    __slots__ = ("audio", "frames", "texts")
 
-    def __init__(self, audio: Any, frames: list[bytes]) -> None:
+    def __init__(self, audio: Any, frames: list[bytes], texts: list[str] | None = None) -> None:
         self.audio = audio
         self.frames = frames
+        self.texts = texts or []
 
 
 # ---------------------------------------------------------------------------

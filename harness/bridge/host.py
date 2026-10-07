@@ -31,6 +31,7 @@ from .contracts import BackendInjection, ModelStep
 from .runtime import VenusOmniAgentHarness, VenusOmniSession
 from .serving import (
     AudioAppend,
+    TextAppend,
     AudioFormat,
     CloseSession,
     GeneratedAudio,
@@ -349,6 +350,17 @@ class VenusOmniServingHost:
                     "attach files before beginning the serving media session"
                 )
             await self.session.ingest_user_file(name, data, mime_type)
+
+    async def append_text(self, text: str) -> InputAccepted:
+        async with self._owner_lock:
+            self._ensure_usable()
+            append = getattr(self.serving, "append_text", None)
+            if append is None:
+                raise RuntimeError("serving does not support typed messages")
+            request = TextAppend(self.opened.session_id, self.opened.incarnation,
+                                 self._next_event_seq(), text)
+            sequence = await self.session.ingest_user_text(text)
+            return await self._append_serving_input(request, append, harness_sequence=sequence)
 
     async def append_audio(self, chunk: AudioChunk) -> InputAccepted:
         """Buffer audio in Harness first, then fence the same bytes in serving."""
@@ -742,7 +754,7 @@ class VenusOmniServingHost:
 
     async def _append_serving_input(
         self,
-        request: AudioAppend | VideoFrameAppend | VideoSegmentAppend,
+        request: TextAppend | AudioAppend | VideoFrameAppend | VideoSegmentAppend,
         append: Callable[[Any], Any],
         *,
         harness_sequence: int,
